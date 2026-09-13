@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>おトクナビ</title>
+<meta name="description" content="スマホのタッチ決済7%還元の店探し・キャンペーン確認・年間100万円の達成ペース管理">
+<meta name="theme-color" content="#0e7c66">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="おトクナビ">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="appbar">
+  <h1>おトクナビ</h1>
+  <button id="btn-settings" class="icon-btn" aria-label="設定">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5ZM13 15.5A3.5 3.5 0 1 1 13 8.5a3.5 3.5 0 0 1 0 7Z" transform="translate(-1 0)"/></svg>
+  </button>
+</header>
+
+<main>
+  <!-- ========== 探す ========== -->
+  <section id="tab-search" class="tab" data-tab="search">
+    <form id="search-form" class="searchbar" autocomplete="off">
+      <button type="button" id="btn-here" class="btn primary">現在地</button>
+      <input id="q" type="search" placeholder="行き先（例: USJ、梅田、京都駅）" enterkeyhint="search">
+      <button type="submit" class="btn">検索</button>
+    </form>
+    <div class="row-between small">
+      <label>半径
+        <select id="radius">
+          <option value="500">500m</option>
+          <option value="1000" selected>1km</option>
+          <option value="2000">2km</option>
+        </select>
+      </label>
+      <span id="search-status" class="muted" aria-live="polite">「現在地」を押すと周辺の7%還元店を探します</span>
+    </div>
+    <div id="place-choices" class="chips" hidden></div>
+    <div id="map" class="map" role="region" aria-label="地図"></div>
+    <div class="row-between small">
+      <button type="button" class="linkish" id="btn-center">↻ 地図の真ん中で探し直す</button>
+      <span class="legend muted"><i style="background:#0e7c66"></i>7%店 <i style="background:#2f6fd6"></i>モバイルオーダーのみ <i style="background:#7b3fb0"></i>クラブオフ <i style="background:#a87400"></i>特約</span>
+    </div>
+
+    <div id="trip" class="card trip" hidden></div>
+
+    <div class="chips" id="store-filter">
+      <button class="chip on" data-f="all">すべて</button>
+      <button class="chip" data-f="コンビニ">コンビニ</button>
+      <button class="chip" data-f="food">飲食</button>
+      <button class="chip" data-f="mo">モバイルオーダー</button>
+      <button class="chip" data-f="club">クラブオフ登録店</button>
+    </div>
+    <ul id="store-list" class="list"></ul>
+
+    <div class="card">
+      <h2>クラブオフの優待店</h2>
+      <p class="small muted">クラブオフはログインが必要なので自動では取得しません。優待店の検索は公式サイト・公式アプリで行い、よく使うお店だけここに登録すると、地図と「払い方」に表示されます。</p>
+      <div class="btn-row">
+        <a class="btn" href="https://www.club-off.com/metlife_n/apps/top/fftop_main.cfm?action=1" target="_blank" rel="noopener">公式サイトで探す</a>
+        <a class="btn" id="club-app-link" href="https://apps.apple.com/jp/app/id1273907949" target="_blank" rel="noopener">公式アプリ</a>
+        <button class="btn primary" id="btn-club-add">＋ 登録</button>
+      </div>
+      <ul id="club-list" class="list compact"></ul>
+    </div>
+  </section>
+
+  <!-- ========== 払い方 ========== -->
+  <section id="tab-pay" class="tab" data-tab="pay" hidden>
+    <div class="card">
+      <h2>このお店、どう払う？</h2>
+      <label class="field">お店
+        <select id="pay-store"></select>
+      </label>
+      <label class="field" id="pay-other-wrap" hidden>お店の名前
+        <input id="pay-other" type="text" placeholder="例: ○○ホテル、△△ラーメン">
+      </label>
+      <label class="field">金額（税込・円）
+        <input id="pay-amount" type="number" inputmode="numeric" min="0" step="1" placeholder="1000">
+      </label>
+      <div class="chips">
+        <button class="chip" data-amt="500">500</button>
+        <button class="chip" data-amt="1000">1,000</button>
+        <button class="chip" data-amt="3000">3,000</button>
+        <button class="chip" data-amt="10000">10,000</button>
+        <button class="chip" data-amt="15000">15,000</button>
+      </div>
+    </div>
+    <div id="pay-result"></div>
+  </section>
+
+  <!-- ========== キャンペーン ========== -->
+  <section id="tab-camp" class="tab" data-tab="camp" hidden>
+    <div class="row-between small">
+      <span id="camp-updated" class="muted"></span>
+      <button class="linkish" id="btn-notify-help">通知の受け取り方</button>
+    </div>
+    <div class="chips" id="camp-filter">
+      <button class="chip on" data-f="all">受付中</button>
+      <button class="chip" data-f="entry">エントリー要</button>
+      <button class="chip" data-f="soon">締切7日以内</button>
+      <button class="chip" data-f="prio">注目</button>
+      <button class="chip" data-f="hidden">非表示にしたもの</button>
+    </div>
+    <div id="camp-list"></div>
+    <div class="card" id="store-watch"></div>
+  </section>
+
+  <!-- ========== 100万円 ========== -->
+  <section id="tab-year" class="tab" data-tab="year" hidden>
+    <div class="card">
+      <div class="row-between">
+        <h2>年間100万円チャレンジ</h2>
+        <label class="small">集計開始 <input id="year-start" type="month"></label>
+      </div>
+      <p class="small muted">年100万円使うと、翌年以降の年会費が永年無料＋毎年10,000ポイント。</p>
+      <div id="year-summary"></div>
+    </div>
+    <div class="card">
+      <h2>月ごとの利用額</h2>
+      <div id="year-bars" class="bars"></div>
+      <div id="year-target" class="target-line"></div>
+    </div>
+    <div class="card" id="year-seven"></div>
+    <div class="card">
+      <h2>明細を取り込む</h2>
+      <p class="small muted">Vpass（ブラウザ版）の「ご利用明細」からダウンロードしたCSVを選んでください。複数月まとめて選べます。同じ明細を2回読み込んでも重複しません。データはこのスマホの中だけに保存され、外部には送信されません。</p>
+      <label class="btn primary file-btn">CSVを選ぶ<input id="csv-input" type="file" accept=".csv,text/csv" multiple hidden></label>
+      <details class="manual">
+        <summary>手入力で追加</summary>
+        <form id="tx-form" class="grid-form">
+          <input id="tx-date" type="date" required aria-label="日付">
+          <input id="tx-store" type="text" placeholder="お店" aria-label="お店">
+          <input id="tx-amount" type="number" inputmode="numeric" placeholder="金額" required aria-label="金額">
+          <button class="btn" type="submit">追加</button>
+        </form>
+      </details>
+      <p id="csv-status" class="small" aria-live="polite"></p>
+      <details>
+        <summary>取り込んだ明細（新しい順）</summary>
+        <ul id="tx-list" class="list compact"></ul>
+        <button class="btn danger small" id="btn-tx-clear">明細をすべて削除</button>
+      </details>
+    </div>
+    <div class="card">
+      <h2>Vポイントの有効期限</h2>
+      <p class="small muted">Vポイントの期限は、最後にポイントを貯めた・使った日から1年です。</p>
+      <label class="field">最後にポイントが増減した日 <input id="vp-date" type="date"></label>
+      <div id="vp-result"></div>
+    </div>
+  </section>
+</main>
+
+<nav class="tabbar" aria-label="メニュー">
+  <button data-go="search" class="on"><span class="ico">📍</span>探す</button>
+  <button data-go="pay"><span class="ico">💳</span>払い方</button>
+  <button data-go="camp"><span class="ico">🎁</span>キャンペーン<span id="camp-badge" class="badge" hidden></span></button>
+  <button data-go="year"><span class="ico">📈</span>100万円</button>
+</nav>
+
+<!-- 設定 -->
+<dialog id="dlg-settings">
+  <form method="dialog" class="dlg">
+    <h2>設定</h2>
+    <label class="field">スマホ
+      <select id="set-phone"><option value="iphone">iPhone（Apple Pay）</option><option value="android">Android（Google Pay）</option></select>
+    </label>
+    <label class="field">スマホに登録しているカードのブランド
+      <select id="set-brand"><option value="visa">Visa</option><option value="master">Mastercard</option></select>
+    </label>
+    <label class="field">「探す」の初期の半径
+      <select id="set-radius"><option value="500">500m</option><option value="1000">1km</option><option value="2000">2km</option></select>
+    </label>
+    <h3>バックアップ</h3>
+    <p class="small muted">登録したお店・明細・チェックはこのスマホの中だけに保存されています。機種変更の前にバックアップしてください。</p>
+    <div class="btn-row">
+      <button type="button" class="btn" id="btn-export">書き出す</button>
+      <label class="btn">読み込む<input id="import-input" type="file" accept=".json,application/json" hidden></label>
+    </div>
+    <h3>このアプリについて</h3>
+    <p class="small muted">還元率・対象店は三井住友カードの公式ページ（2026年9月時点）をもとにしています。条件は変わることがあるので、大きな買い物の前は公式ページで確認してください。地図とお店のデータは OpenStreetMap を使っています（未登録のお店もあります）。学習・情報整理のためのツールで、還元を保証するものではありません。</p>
+    <div class="btn-row end"><button class="btn primary" value="close">閉じる</button></div>
+  </form>
+</dialog>
+
+<!-- クラブオフ登録 -->
+<dialog id="dlg-club">
+  <form method="dialog" class="dlg" id="club-form">
+    <h2>クラブオフ優待店を登録</h2>
+    <label class="field">お店の名前 <input id="club-name" required placeholder="例: ○○焼肉 梅田店"></label>
+    <label class="field">優待の内容 <input id="club-memo" placeholder="例: 会員証提示で10%OFF"></label>
+    <label class="field">場所
+      <select id="club-pos">
+        <option value="center">いま地図の真ん中にある場所</option>
+        <option value="here">現在地</option>
+      </select>
+    </label>
+    <p class="small muted">地図を動かしてお店の位置を真ん中に合わせてから登録すると正確です。</p>
+    <div class="btn-row end">
+      <button class="btn" value="cancel" formnovalidate>やめる</button>
+      <button class="btn primary" value="ok" id="club-ok">登録</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 通知の受け取り方 -->
+<dialog id="dlg-notify">
+  <form method="dialog" class="dlg">
+    <h2>通知の受け取り方</h2>
+    <ol class="small steps">
+      <li>スマホに無料アプリ「ntfy」を入れる（App Store / Google Play）</li>
+      <li>アプリで「＋」→ トピック名に、セットアップ時に決めた<b>通知用トピック名</b>を入力して購読</li>
+      <li>毎朝8時ごろに新着キャンペーンをチェックし、見つかったら通知が届きます。エントリーが必要なものは「開始日」と「締切の前日」にも通知します</li>
+    </ol>
+    <p class="small muted">トピック名は、PCの「お得アプリ」フォルダにある「★通知の設定メモ」に書いてあります。</p>
+    <div class="btn-row end"><button class="btn primary" value="close">閉じる</button></div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
