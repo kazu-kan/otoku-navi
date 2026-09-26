@@ -21,7 +21,7 @@
   const KEY = 'otoku.v1';
   const DEFAULTS = () => ({
     settings: { phone: /android/i.test(navigator.userAgent) ? 'android' : 'iphone', brand: 'visa', radius: 1000, yearStart: '' },
-    club: [], marks: {}, tx: [], vpDate: '',
+    club: [], marks: {}, tx: [], vpDate: '', helpDone: false,
   });
   let S = load();
   function load() {
@@ -104,75 +104,50 @@
       return;
     }
     map = L.map('map', { zoomControl: true }).setView([35.2, 136.2], 5);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
-    }).addTo(map);
+    const attr = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a>' +
+      ' | 店舗 &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
+    const gsi = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { maxZoom: 18, attribution: attr }).addTo(map);
+    // 国土地理院の地図が読めないときは OpenStreetMap の地図に切り替える
+    let errors = 0;
+    gsi.on('tileerror', () => {
+      if (++errors !== 6) return;
+      map.removeLayer(gsi);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+    });
     layer = L.layerGroup().addTo(map);
   }
 
   function setStatus(msg) { $('#search-status').textContent = msg; }
 
-  const OVERPASS = [
-    'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
-    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
-  ];
-  const ovCache = new Map();
-  async function overpass(lat, lon, r) {
-    const key = `${lat.toFixed(3)},${lon.toFixed(3)},${r}`;
-    if (ovCache.has(key)) return ovCache.get(key);
-    const rx = CH.chains.map((c) => c.ov).join('|').replace(/"/g, '');
-    const a = `(around:${r},${lat.toFixed(6)},${lon.toFixed(6)})`;
-    const q = `[out:json][timeout:25];(` +
-      `nwr["shop"="convenience"]${a};` +
-      `nwr["amenity"~"^(restaurant|fast_food|cafe|food_court)$"]["name"~"${rx}",i]${a};` +
-      `nwr["amenity"~"^(restaurant|fast_food|cafe)$"]["brand"~"${rx}",i]${a};` +
-      `);out center tags;`;
-    let lastErr;
-    for (const ep of OVERPASS) {
-      const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), 30000);
-      try {
-        const res = await fetch(ep, { method: 'POST', body: new URLSearchParams({ data: q }), signal: ctl.signal });
+  // お店データ: monitor/build_stores.py が週1回作る 0.25度四方ごとのファイル（docs/data/stores/）を読む
+  const CELL = 0.25;
+  const cellCache = new Map();
+  function loadCell(key) {
+    if (!cellCache.has(key)) {
+      const p = fetch(`data/stores/${key}.json`).then((res) => {
+        if (res.status === 404) return [];          // 対象店のない地域
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        const j = await res.json();
-        ovCache.set(key, j.elements || []);
-        return j.elements || [];
-      } catch (e) { lastErr = e; } finally { clearTimeout(timer); }
-    }
-    throw lastErr;
-  }
-
-  function classify(t) {
-    if (t.amenity === 'atm' || t.amenity === 'bank' || /銀行|ATM/i.test(t.name || '')) return null;
-    const text = [t.name, t['name:ja'], t['name:en'], t.brand, t['brand:ja'], t['brand:en']].filter(Boolean).join(' ').normalize('NFKC');
-    const isConv = t.shop === 'convenience';
-    const isFood = /^(restaurant|fast_food|cafe|food_court)$/.test(t.amenity || '');
-    for (const c of CH.chains) {
-      if (!c.rx.test(text)) continue;
-      if (c.cat === 'コンビニ' ? isConv : isFood) return c;
-    }
-    return null;
-  }
-
-  function toStores(els, lat, lon) {
-    const out = [], seen = new Set();
-    for (const e of els) {
-      const t = e.tags || {};
-      const c = classify(t);
-      if (!c) continue;
-      const la = e.lat ?? e.center?.lat, lo = e.lon ?? e.center?.lon;
-      if (la == null) continue;
-      const k = c.id + ':' + la.toFixed(4) + ',' + lo.toFixed(4);
-      if (seen.has(k)) continue;
-      seen.add(k);
-      const nm = t.name || c.name;
-      out.push({
-        id: 'o' + e.type[0] + e.id, type: 'store', chain: c, lat: la, lon: lo,
-        name: t.branch && !nm.includes(t.branch) ? `${nm} ${t.branch}` : nm,
-        d: dist(lat, lon, la, lo),
+        return res.json();
       });
+      p.catch(() => cellCache.delete(key));          // 通信エラーは次回やり直す
+      cellCache.set(key, p);
+    }
+    return cellCache.get(key);
+  }
+  async function storesAround(lat, lon, r) {
+    const dLat = r / 111000, dLon = r / (111000 * Math.cos(lat * Math.PI / 180));
+    const keys = [];
+    for (let a = Math.floor((lat - dLat) / CELL); a <= Math.floor((lat + dLat) / CELL); a++) {
+      for (let b = Math.floor((lon - dLon) / CELL); b <= Math.floor((lon + dLon) / CELL); b++) keys.push(`${a}_${b}`);
+    }
+    const out = [];
+    for (const rows of await Promise.all(keys.map(loadCell))) {
+      for (const [la, lo, id, nm] of rows) {
+        const d = dist(lat, lon, la, lo);
+        const c = chainById(id);
+        if (d > r || !c) continue;
+        out.push({ id: `o${la},${lo}`, type: 'store', chain: c, lat: la, lon: lo, name: nm || c.name, d });
+      }
     }
     return out;
   }
@@ -187,7 +162,7 @@
     let found = [];
     let failed = false;
     try {
-      found = toStores(await overpass(lat, lon, r), lat, lon);
+      found = await storesAround(lat, lon, r);
     } catch (e) {
       failed = true;
     }
@@ -203,7 +178,7 @@
     found.sort((a, b) => ((b.type === 'spot') - (a.type === 'spot')) || a.d - b.d);  // 特約スポットを先頭に、あとは近い順
     stores = found;
     setStatus(failed
-      ? 'お店データの取得に失敗しました。少し待ってからもう一度お試しください'
+      ? 'お店データを読み込めませんでした。通信状態を確認してもう一度お試しください'
       : `${label}から半径${fmtDist(r)}に対象店 ${found.filter((s) => s.type === 'store').length} 件`);
     drawMarkers();
     renderStores();
@@ -218,12 +193,12 @@
 
   function badges(s) {
     const b = [];
-    if (s.type === 'spot') b.push('<span class="tag gold">特約スポット 7%</span>');
+    if (s.type === 'spot') b.push('<span class="tag gold">ここで7%</span>');
     if (s.type === 'club') b.push('<span class="tag club">クラブオフ</span>');
     const c = s.chain;
     if (c) {
-      if (c.touch) b.push('<span class="tag">スマホタッチ 7%</span>');
-      if (c.mo) b.push(`<span class="tag${c.touch ? ' gray' : ''}">モバイルオーダー 7%</span>`);
+      if (c.touch) b.push('<span class="tag">スマホでタッチ→7%</span>');
+      if (c.mo) b.push(`<span class="tag${c.touch ? ' gray' : ''}">アプリ注文→7%</span>`);
       if (c.partial) b.push('<span class="tag warn">対象外の店舗あり</span>');
     }
     return b.join('');
@@ -313,10 +288,18 @@
     const url = 'https://nominatim.openstreetmap.org/search?' + new URLSearchParams({
       format: 'jsonv2', q, countrycodes: 'jp', limit: '5', addressdetails: '1', 'accept-language': 'ja',
     });
-    const res = await fetch(url, { headers: { Accept: 'application/json' } });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const j = await res.json();
-    return j.map((x) => ({ lat: +x.lat, lon: +x.lon, label: x.name || q, full: x.display_name, pref: prefOf(x) }));
+    try {
+      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const j = await res.json();
+      if (j.length) return j.map((x) => ({ lat: +x.lat, lon: +x.lon, label: x.name || q, full: x.display_name, pref: prefOf(x) }));
+    } catch (e) { /* 下の国土地理院の住所検索で再挑戦 */ }
+    const res2 = await fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(q));
+    if (!res2.ok) throw new Error('HTTP ' + res2.status);
+    return (await res2.json()).slice(0, 5).map((x) => ({
+      lat: x.geometry.coordinates[1], lon: x.geometry.coordinates[0], label: x.properties.title, full: x.properties.title,
+      pref: (x.properties.title.match(/^(北海道|東京都|京都府|大阪府|.{2,3}県)/) || [''])[0],
+    }));
   }
 
   function activeCampaigns() {
@@ -344,7 +327,7 @@
     const parts = [];
     for (const s of CH.spots) {
       if (dist(last.lat, last.lon, s.lat, s.lon) <= Math.max(+$('#radius').value, 1500)) {
-        parts.push(`<div class="item"><span class="tag gold">特約スポット</span><b>${esc(s.name)}</b>
+        parts.push(`<div class="item"><span class="tag gold">7%になる場所</span><b>${esc(s.name)}</b>
           <div class="small">${esc(s.note)}</div><a class="small" href="${esc(s.url)}" target="_blank" rel="noopener">公式ページを開く</a></div>`);
       }
     }
@@ -358,7 +341,7 @@
         else if (!c.area && /旅行|ホテル|宿|トリップ|乗車|交通|観光/.test(text)) travel.push(c);
       }
       const line = (c) => `<div class="item">${c.entry ? '<span class="tag warn">エントリー要</span>' : ''}${c.area ? `<span class="tag gray">${esc(c.area)}</span>` : ''}
-        <a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.title)}</a>${c.end ? `<div class="small muted">〜${fmtDate(c.end)}</div>` : ''}</div>`;
+        <a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(cleanTitle(c.title))}</a>${c.end ? `<div class="small muted">〜${fmtDate(c.end)}</div>` : ''}</div>`;
       if (hit.length) parts.push(`<h3>この行き先に関係するキャンペーン</h3>${hit.map(line).join('')}`);
       if (travel.length) parts.push(`<h3>おでかけで使えそうなキャンペーン</h3>${travel.slice(0, 4).map(line).join('')}`);
       parts.push(`<h3>宿・レジャー・グルメの優待</h3><div class="item small">クラブオフでホテル・レジャー施設・飲食店の優待を探せます（要ログイン）。
@@ -384,19 +367,37 @@
     };
   }
 
+  function locateHere() {
+    if (!navigator.geolocation) { setStatus('この端末では現在地を使えません'); return; }
+    setStatus('現在地を取得しています…');
+    $('#place-choices').hidden = true;
+    navigator.geolocation.getCurrentPosition(
+      (p) => searchAt(p.coords.latitude, p.coords.longitude, '現在地', 'here'),
+      (err) => setStatus(err.code === 1
+        ? '位置情報がオフです。スマホの設定でブラウザ（またはこのアプリ）の位置情報を許可してください'
+        : '現在地を取得できませんでした。電波の良い場所でもう一度お試しください'),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+  }
+
+  // 位置情報をすでに許可済みなら、開いた瞬間に現在地の周辺を表示する
+  async function autoLocate() {
+    try {
+      const st = await navigator.permissions?.query({ name: 'geolocation' });
+      if (st?.state === 'granted') locateHere();
+    } catch (e) { /* Permissions API 非対応の端末はボタンで */ }
+  }
+
+  function showHelp(force) {
+    const el = $('#help');
+    el.hidden = !force && !!S.helpDone;
+  }
+
   function bindSearch() {
+    showHelp();
+    $('#btn-help-ok').onclick = () => { S.helpDone = true; save(); showHelp(); };
+
     $('#radius').value = String(S.settings.radius);
-    $('#btn-here').onclick = () => {
-      if (!navigator.geolocation) { setStatus('この端末では現在地を使えません'); return; }
-      setStatus('現在地を取得しています…');
-      $('#place-choices').hidden = true;
-      navigator.geolocation.getCurrentPosition(
-        (p) => searchAt(p.coords.latitude, p.coords.longitude, '現在地', 'here'),
-        (err) => setStatus(err.code === 1
-          ? '位置情報がオフです。スマホの設定でブラウザ（またはこのアプリ）の位置情報を許可してください'
-          : '現在地を取得できませんでした。電波の良い場所でもう一度お試しください'),
-        { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
-    };
+    $('#btn-here').onclick = locateHere;
     $('#search-form').onsubmit = async (e) => {
       e.preventDefault();
       const q = $('#q').value.trim();
@@ -449,7 +450,7 @@
     ul.innerHTML = S.club.map((c) => {
       const ch = matchChain(c.name);
       return `<li data-id="${esc(c.id)}"><span class="dot club"></span>
-        <div class="grow"><div class="name">${esc(c.name)}</div><div class="sub">${esc(c.memo || '')}${ch ? ' <span class="tag">スマホタッチ 7%併用</span>' : ''}</div></div>
+        <div class="grow"><div class="name">${esc(c.name)}</div><div class="sub">${esc(c.memo || '')}${ch ? ' <span class="tag">スマホでタッチ→7%も</span>' : ''}</div></div>
         <button class="linkish" data-act="map">地図</button><button class="linkish" data-act="del" style="color:var(--danger)">削除</button></li>`;
     }).join('');
   }
@@ -504,7 +505,7 @@
     for (const cat of ['コンビニ', 'ファストフード', 'ファミレス', 'カフェ']) {
       h += `<optgroup label="${cat}">` + CH.chains.filter((c) => c.cat === cat).map((c) => `<option value="c:${c.id}">${esc(c.name)}</option>`).join('') + '</optgroup>';
     }
-    h += '<optgroup label="特約スポット">' + CH.spots.map((s) => `<option value="s:${s.id}">${esc(s.name)}</option>`).join('') + '</optgroup>';
+    h += '<optgroup label="7%になる場所">' + CH.spots.map((s) => `<option value="s:${s.id}">${esc(s.name)}</option>`).join('') + '</optgroup>';
     if (S.club.length) h += '<optgroup label="クラブオフ登録店">' + S.club.map((c) => `<option value="k:${c.id}">${esc(c.name)}</option>`).join('') + '</optgroup>';
     h += '<optgroup label="その他"><option value="other">上記以外のお店</option></optgroup>';
     sel.innerHTML = h;
@@ -614,7 +615,7 @@
         <ul class="notes">${notes.map((n) => `<li>${n}</li>`).join('')}</ul>
       </div>
       ${related.length ? `<div class="card"><h2>関係しそうなキャンペーン</h2>${related.map((c) =>
-        `<div class="small" style="margin-top:6px">${c.entry ? '<span class="tag warn">エントリー要</span>' : ''}<a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.title)}</a></div>`).join('')}</div>` : ''}
+        `<div class="small" style="margin-top:6px">${c.entry ? '<span class="tag warn">エントリー要</span>' : ''}<a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(cleanTitle(c.title))}</a></div>`).join('')}</div>` : ''}
       <p class="small muted">ポイントは200円（税込）ごとの計算の目安です。1pt＝1円相当。</p>`;
   }
 
@@ -635,6 +636,13 @@
     const d = new Date(iso + 'T00:00:00');
     return `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]})`;
   }
+  // 「〇〇キャンペーン」を開催！ → 〇〇キャンペーン のように読みやすくする
+  function cleanTitle(t) {
+    return String(t || '').trim()
+      .replace(/[」』]?\s*を(開催|実施)(いた)?し?(ます)?[！!。]?$/, '')
+      .replace(/^[「『]/, '').replace(/[」』]$/, '').trim();
+  }
+
   function daysLeft(c) {
     if (!c.end) return null;
     const end = new Date(c.end + 'T00:00:00'), t = new Date(todayStr() + 'T00:00:00');
@@ -670,7 +678,7 @@
         const period = c.start || c.end ? `期間: ${fmtDate(c.start)}〜${fmtDate(c.end)}${d !== null ? `（あと${d}日）` : ''}` : '期間: 記事で確認';
         return `<article class="card camp${m.done ? ' done' : ''}${c.entry && !m.done ? ' entry-todo' : ''}" data-id="${esc(c.id)}">
           <div>${tags}</div>
-          <h3>${esc(c.title)}</h3>
+          <h3>${esc(cleanTitle(c.title))}</h3>
           <div class="period">${period}</div>
           ${c.summary ? `<p class="summary">${esc(c.summary)}</p>` : ''}
           <div class="btn-row">
@@ -941,6 +949,7 @@
     $('#set-phone').onchange = (e) => { S.settings.phone = e.target.value; save(); renderClub(); renderPay(); drawMarkers(); };
     $('#set-brand').onchange = (e) => { S.settings.brand = e.target.value; save(); renderPay(); };
     $('#set-radius').onchange = (e) => { S.settings.radius = +e.target.value; $('#radius').value = e.target.value; save(); };
+    $('#btn-help-again').onclick = () => { showHelp(true); dlg.close(); go('search'); window.scrollTo(0, 0); };
     $('#btn-export').onclick = async () => {
       const blob = new Blob([JSON.stringify({ app: 'otoku-navi', exported: new Date().toISOString(), data: S }, null, 1)], { type: 'application/json' });
       const fname = `otoku-navi-backup-${todayStr()}.json`;
@@ -998,8 +1007,13 @@
     if (at && /^-?[\d.]+,-?[\d.]+$/.test(at)) {
       const [la, lo] = at.split(',').map(Number);
       searchAt(la, lo, '指定地点', 'here');
+    } else if ((location.hash.slice(1) || 'search') === 'search') {
+      autoLocate();
     }
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      // アプリが更新されたら、新しい版に切り替わった時点で1回だけ読み込み直す
+      const hadController = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) location.reload(); });
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }
   }

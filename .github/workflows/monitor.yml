@@ -1,4 +1,5 @@
 # 毎朝8時（日本時間）にキャンペーンを確認し、新着・締切・対象店の変更をスマホに通知する
+# あわせて週1回、7%対象店の全国データ（地図に出すお店）を作り直す
 name: キャンペーン監視
 
 on:
@@ -14,6 +15,7 @@ concurrency: monitor
 jobs:
   monitor:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -26,11 +28,17 @@ jobs:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: python monitor/monitor.py
 
+      - name: お店データを更新（前回から7日たったときだけ）
+        if: always()
+        continue-on-error: true
+        run: python monitor/build_stores.py
+
       - name: 結果を保存（アプリが読むデータを更新）
         if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/data/campaigns.json monitor/state.json
+          git add -A docs/data/stores
           git diff --cached --quiet || git commit -m "キャンペーン情報を更新 $(TZ=Asia/Tokyo date +%F)"
           git push

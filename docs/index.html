@@ -27,6 +27,15 @@
 <main>
   <!-- ========== 探す ========== -->
   <section id="tab-search" class="tab" data-tab="search">
+    <div id="help" class="card" hidden>
+      <h2>使い方（これだけ）</h2>
+      <ol class="small steps">
+        <li><b>お店をさがす</b>：「現在地」を押すと、7%還元のコンビニ・飲食店が地図と一覧に出ます</li>
+        <li><b>スマホでタッチして払う</b>：Apple Pay / Google Pay のタッチ決済だけが7%です（カードを出すと0.5%）</li>
+        <li><b>1万円を超えない</b>：超えるとタッチ決済が使えず、7%になりません</li>
+      </ol>
+      <div class="btn-row end"><button class="btn primary" id="btn-help-ok">わかった</button></div>
+    </div>
     <form id="search-form" class="searchbar" autocomplete="off">
       <button type="button" id="btn-here" class="btn primary">現在地</button>
       <input id="q" type="search" placeholder="行き先（例: USJ、梅田、京都駅）" enterkeyhint="search">
@@ -40,13 +49,13 @@
           <option value="2000">2km</option>
         </select>
       </label>
-      <span id="search-status" class="muted" aria-live="polite">「現在地」を押すと周辺の7%還元店を探します</span>
+      <span id="search-status" class="muted" aria-live="polite">下の「現在地」を押してください</span>
     </div>
     <div id="place-choices" class="chips" hidden></div>
     <div id="map" class="map" role="region" aria-label="地図"></div>
     <div class="row-between small">
       <button type="button" class="linkish" id="btn-center">↻ 地図の真ん中で探し直す</button>
-      <span class="legend muted"><i style="background:#0e7c66"></i>7%店 <i style="background:#2f6fd6"></i>モバイルオーダーのみ <i style="background:#7b3fb0"></i>クラブオフ <i style="background:#a87400"></i>特約</span>
+      <span class="legend muted"><i style="background:#0e7c66"></i>スマホでタッチ <i style="background:#2f6fd6"></i>アプリ注文のみ <i style="background:#7b3fb0"></i>クラブオフ <i style="background:#a87400"></i>7%の場所</span>
     </div>
 
     <div id="trip" class="card trip" hidden></div>
@@ -55,7 +64,7 @@
       <button class="chip on" data-f="all">すべて</button>
       <button class="chip" data-f="コンビニ">コンビニ</button>
       <button class="chip" data-f="food">飲食</button>
-      <button class="chip" data-f="mo">モバイルオーダー</button>
+      <button class="chip" data-f="mo">アプリ注文</button>
       <button class="chip" data-f="club">クラブオフ登録店</button>
     </div>
     <ul id="store-list" class="list"></ul>
@@ -178,6 +187,7 @@
     <label class="field">「探す」の初期の半径
       <select id="set-radius"><option value="500">500m</option><option value="1000">1km</option><option value="2000">2km</option></select>
     </label>
+    <div class="btn-row"><button type="button" class="btn" id="btn-help-again">使い方をもう一度見る</button></div>
     <h3>バックアップ</h3>
     <p class="small muted">登録したお店・明細・チェックはこのスマホの中だけに保存されています。機種変更の前にバックアップしてください。</p>
     <div class="btn-row">

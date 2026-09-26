@@ -193,7 +193,7 @@ select { appearance: auto; }
 .camp.done { opacity: .6; }
 .camp h3 { margin: 4px 0 6px; font-size: 15px; overflow-wrap: anywhere; }
 .camp .period { font-size: 13px; color: var(--muted); }
-.camp .summary { font-size: 13.5px; margin: 6px 0 0; }
+.camp .summary { font-size: 13.5px; margin: 6px 0 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .camp .btn-row { margin-top: 8px; }
 .camp .btn { min-height: 34px; font-size: 13px; padding: 0 10px; }
 .camp.entry-todo { border-color: var(--warn); }
@@ -252,6 +252,7 @@ dialog::backdrop { background: rgba(10, 15, 20, .45); }
 .dlg { padding: 18px 18px 16px; max-height: 85vh; overflow-y: auto; }
 .steps { padding-left: 20px; }
 .steps li + li { margin-top: 6px; }
+.steps b { display: block; }
 
 .toast {
   position: fixed; left: 50%; transform: translateX(-50%);

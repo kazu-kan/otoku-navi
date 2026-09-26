@@ -1,7 +1,7 @@
 // おトクナビ Service Worker
 // アプリ本体はキャッシュ優先（オフラインでも開ける）、キャンペーン情報はネット優先（常に最新を取りに行く）。
 // アプリを更新したら VERSION を上げる。
-const VERSION = 'v1';
+const VERSION = 'v3';
 const CACHE = 'otoku-' + VERSION;
 const SHELL = [
   './', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest', 'data/chains.json',
@@ -11,7 +11,8 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload' でブラウザの一時保存を飛ばし、必ず最新のファイルを取りに行く
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -39,9 +40,19 @@ self.addEventListener('fetch', (e) => {
     );
     return;
   }
+  // お店データ（週1回更新）: 保存済みがあれば即表示し、裏で最新版に更新しておく
+  if (sameOrigin && url.pathname.includes('/data/stores/')) {
+    e.respondWith(caches.open(CACHE).then(async (c) => {
+      const hit = await c.match(req);
+      const net = fetch(req).then((res) => { if (res.ok) c.put(req, res.clone()); return res; });
+      if (hit) { net.catch(() => {}); return hit; }
+      return net;
+    }));
+    return;
+  }
   // アプリ本体・ライブラリ: キャッシュ優先
   if (sameOrigin || url.host === 'cdnjs.cloudflare.com') {
     e.respondWith(caches.match(req).then((hit) => hit || fetch(req)));
   }
-  // 地図タイル・お店データ・地名検索はキャッシュせずそのまま通す
+  // 地図タイル・地名検索はキャッシュせずそのまま通す
 });

@@ -1,0 +1,33 @@
+{
+ "built": "2026-09-14T22:18:02+09:00",
+ "cell": 0.25,
+ "count": 45320,
+ "cells": 654,
+ "by_chain": {
+  "seven": 17582,
+  "lawson": 11589,
+  "mcd": 2501,
+  "ministop": 1571,
+  "sukiya": 1479,
+  "starbucks": 1457,
+  "gusto": 1176,
+  "mos": 995,
+  "yoshinoya": 985,
+  "seicomart": 947,
+  "saizeriya": 836,
+  "doutor": 828,
+  "kfc": 821,
+  "hamasushi": 464,
+  "cocos": 438,
+  "bamiyan": 293,
+  "kappa": 272,
+  "jonathan": 194,
+  "skylark": 189,
+  "shabuyo": 183,
+  "poplar": 161,
+  "yumean": 151,
+  "freshness": 107,
+  "excelsior": 101
+ },
+ "source": "© OpenStreetMap contributors (ODbL)"
+}
