@@ -211,6 +211,7 @@
   "https://prtimes.jp/main/html/rd/p/000000995.000032321.html",
   "https://prtimes.jp/main/html/rd/p/000000996.000032321.html",
   "https://prtimes.jp/main/html/rd/p/000000997.000032321.html",
+  "https://prtimes.jp/main/html/rd/p/000000998.000032321.html",
   "https://prtimes.jp/main/html/rd/p/000000999.000032321.html",
   "https://prtimes.jp/main/html/rd/p/000001000.000032321.html",
   "https://prtimes.jp/main/html/rd/p/000001001.000032321.html",
@@ -218,6 +219,7 @@
   "https://prtimes.jp/main/html/rd/p/000001003.000032321.html",
   "https://prtimes.jp/main/html/rd/p/000001004.000032321.html",
   "https://prtimes.jp/main/html/rd/p/000001006.000032321.html",
+  "https://prtimes.jp/main/html/rd/p/000001007.000032321.html",
   "https://prtimes.jp/main/html/rd/p/000001008.000032321.html"
  ],
  "reminded": [
@@ -226,5 +228,5 @@
  ],
  "store_hash": null,
  "store_error": true,
- "last_run": "2026-10-06 11:40"
+ "last_run": "2026-10-07 11:04"
 }
