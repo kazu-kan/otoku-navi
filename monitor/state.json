@@ -220,7 +220,8 @@
   "https://prtimes.jp/main/html/rd/p/000001004.000032321.html",
   "https://prtimes.jp/main/html/rd/p/000001006.000032321.html",
   "https://prtimes.jp/main/html/rd/p/000001007.000032321.html",
-  "https://prtimes.jp/main/html/rd/p/000001008.000032321.html"
+  "https://prtimes.jp/main/html/rd/p/000001008.000032321.html",
+  "https://prtimes.jp/main/html/rd/p/000001009.000032321.html"
  ],
  "reminded": [
   "pr:000000956000032321:end",
@@ -228,5 +229,5 @@
  ],
  "store_hash": null,
  "store_error": true,
- "last_run": "2026-10-09 11:45"
+ "last_run": "2026-10-10 11:03"
 }
