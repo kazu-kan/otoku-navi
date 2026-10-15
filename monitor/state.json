@@ -222,6 +222,8 @@
   "https://prtimes.jp/main/html/rd/p/000001007.000032321.html",
   "https://prtimes.jp/main/html/rd/p/000001008.000032321.html",
   "https://prtimes.jp/main/html/rd/p/000001009.000032321.html",
+  "https://prtimes.jp/main/html/rd/p/000001011.000032321.html",
+  "https://prtimes.jp/main/html/rd/p/000001012.000032321.html",
   "https://prtimes.jp/main/html/rd/p/000001013.000032321.html"
  ],
  "reminded": [
@@ -230,5 +232,5 @@
  ],
  "store_hash": null,
  "store_error": true,
- "last_run": "2026-10-14 10:35"
+ "last_run": "2026-10-15 10:12"
 }
