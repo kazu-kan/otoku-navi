@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-27 10:48",
+ "updated": "2026-10-28 11:00",
  "items": [
   {
    "id": "pr:000000957000032321",
@@ -221,6 +221,19 @@
    "summary": "対象のコンビニ・飲食店で、スマホのタッチ決済またはモバイルオーダーで支払うと、ご利用金額200円(税込)につき、最大8%還元。",
    "area": null,
    "priority": true
+  },
+  {
+   "id": "pr:000001023000032321",
+   "title": "三井住友カード Visa Infinite、Oliveフレキシブルペイ Visa Infinite会員さまを「2026 MAMA AWARDS」にご招待",
+   "url": "https://prtimes.jp/main/html/rd/p/000001023.000032321.html",
+   "source": "三井住友カード プレスリリース",
+   "published": "2026-10-28",
+   "start": null,
+   "end": null,
+   "entry": null,
+   "summary": "来る11月20日(金)と21日(土)の両日間、日本・京セラドーム大阪で開催されるグローバルK-POP授賞式「2026 MAMA AWARDS」に、対象会員のみなさまを抽選でご招待いたします。さらに特別な体験としてRED CARPETご招待の機会も。世界中のファンが注目する「2026 MAMA AWARDS」の熱狂を、ぜ",
+   "area": null,
+   "priority": false
   }
  ],
  "stores": {
